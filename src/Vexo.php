@@ -43,7 +43,7 @@ class Vexo
      * @param string $apiKey your app's API key
      * @param string $host API base URL
      * @param int $flushAt send a batch when this many messages are queued (1 to 500)
-     * @param float $flushInterval send what is queued once the oldest message is this many seconds old
+     * @param float $flushInterval send what is queued once the oldest message is this many seconds old; 0 turns it off
      * @param int $maxRetries retries for network errors, 429, and 5xx responses
      * @param int $maxQueueSize messages kept in memory; new messages are dropped once it's full
      * @param float $timeout request timeout in seconds
@@ -187,7 +187,9 @@ class Vexo
             $this->firstQueuedAt = self::now();
         }
         $this->queue[] = $json;
-        if (count($this->queue) >= $this->flushAt || self::now() - $this->firstQueuedAt >= $this->flushInterval) {
+        // flushInterval 0 turns the interval off: the queue then goes out on flushAt, flush(), and shutdown only.
+        $intervalDue = $this->flushInterval > 0 && self::now() - $this->firstQueuedAt >= $this->flushInterval;
+        if (count($this->queue) >= $this->flushAt || $intervalDue) {
             $this->flush();
         }
     }

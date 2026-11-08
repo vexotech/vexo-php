@@ -211,6 +211,17 @@ final class VexoTest extends TestCase
         $this->assertSame(['a', 'b'], $this->events(0));
     }
 
+    public function test_flush_interval_0_turns_the_interval_off(): void
+    {
+        $vexo = $this->client(flushInterval: 0.0);
+        $vexo->capture('u', 'a');
+        $vexo->capture('u', 'b');
+        $this->assertSame([], $this->api->requests(), 'flushInterval 0 sent without flushAt or flush()');
+        $vexo->flush();
+
+        $this->assertSame(['a', 'b'], $this->events(0));
+    }
+
     public function test_keeps_each_request_under_5_mb(): void
     {
         $vexo = $this->client();

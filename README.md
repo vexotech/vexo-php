@@ -185,7 +185,7 @@ Pass options as named arguments, for example `new Vexo($key, flushAt: 50)`. The 
 | --- | --- | --- |
 | `host` | `https://api.vexo.co` | API base URL. |
 | `flushAt` | `100` | Send a batch when this many messages are queued (1 to 500). |
-| `flushInterval` | `10.0` | Send the queue when a `capture()` or `identify()` finds the oldest message this many seconds old. |
+| `flushInterval` | `10.0` | Send the queue when a `capture()` or `identify()` finds the oldest message this many seconds old. `0` turns this off, so messages go out only on `flushAt`, `flush()`, and the end of the script. |
 | `maxRetries` | `3` | Retries for network errors, `429`, and `5xx` responses. |
 | `maxQueueSize` | `10000` | Messages kept in memory; new messages are dropped once it's full. |
 | `timeout` | `10.0` | Request timeout in seconds. |
