@@ -48,6 +48,16 @@ foreach ($scenario['steps'] as $step) {
             if (!empty($step['nan'])) {
                 $properties['nan'] = NAN;
             }
+            if (isset($step['dateTime'])) {
+                $properties['dateTime'] = new DateTimeImmutable($step['dateTime']);
+            }
+            if (isset($step['decimal'])) {
+                // PHP before 8.4 has no decimal type: the string itself.
+                $properties['decimal'] = class_exists(BcMath\Number::class) ? new BcMath\Number($step['decimal']) : $step['decimal'];
+            }
+            if (!empty($step['invalidUnicode'])) {
+                $properties['invalidUnicode'] = "ok\xFF";
+            }
             $timestamp = isset($step['at']) ? new DateTimeImmutable($step['at']) : ($step['timestamp'] ?? null);
             $vexo->capture($step['distinctId'], $step['event'], $properties, $timestamp, $step['messageId'] ?? null);
             break;
