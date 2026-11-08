@@ -227,6 +227,7 @@ class Vexo
     /**
      * POST /v1/batch. Network errors, 429 and 5xx are retried with exponential backoff (or the API's Retry-After);
      * messages the API reports as failed are sent again the same way. Dropped messages are reported, not retried.
+     * No attempt starts at or after the deadline: a wait that would reach it ends the retries at once.
      *
      * @param list<string> $batch
      */
@@ -235,7 +236,8 @@ class Vexo
         $maxRetries = $this->circuitOpen ? 0 : $this->maxRetries;
         for ($attempt = 0; ; $attempt++) {
             [$status, $body, $retryAfter] = $this->post('{"batch":[' . implode(',', $batch) . ']}', $deadline);
-            $lastAttempt = $attempt >= $maxRetries || self::now() >= $deadline;
+            $wait = $retryAfter ?? self::backoff($attempt);
+            $lastAttempt = $attempt >= $maxRetries || self::now() + $wait >= $deadline;
             if ($status >= 200 && $status < 300) {
                 $this->circuitOpen = false;
                 // A 2xx body that isn't the API's envelope counts as a success with nothing dropped or failed.
@@ -253,7 +255,7 @@ class Vexo
                     return;
                 }
                 $batch = $failed;
-                self::sleep(self::backoff($attempt), $deadline);
+                usleep((int) ($wait * 1_000_000));
                 continue;
             }
             $retryable = $status === 0 || $status === 429 || $status >= 500;
@@ -266,7 +268,7 @@ class Vexo
                 ));
                 return;
             }
-            self::sleep($retryAfter ?? self::backoff($attempt), $deadline);
+            usleep((int) ($wait * 1_000_000));
         }
     }
 
@@ -395,12 +397,6 @@ class Vexo
     {
         $base = min(2 ** $attempt, self::MAX_BACKOFF_SECONDS);
         return $base / 2 + mt_rand() / mt_getrandmax() * $base / 2;
-    }
-
-    // Sleeps, but never past the deadline.
-    private static function sleep(float $seconds, float $deadline): void
-    {
-        usleep((int) (max(0.0, min($seconds, $deadline - self::now())) * 1_000_000));
     }
 
     private static function now(): float

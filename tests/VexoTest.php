@@ -125,17 +125,24 @@ final class VexoTest extends TestCase
         $this->assertSame([], $this->errors);
     }
 
-    public function test_drops_only_the_message_that_cannot_be_encoded(): void
+    public function test_drops_only_the_messages_that_cannot_be_encoded_including_nan_and_infinity(): void
     {
         $vexo = $this->client();
+        $cycle = new \stdClass();
+        $cycle->self = $cycle;
         $vexo->capture('u', 'ok');
-        $vexo->capture('u', 'poison', ['amount' => NAN]);
+        $vexo->capture('u', 'not_a_number', ['amount' => NAN]);
+        $vexo->capture('u', 'infinite', ['nested' => ['amount' => -INF]]);
+        $vexo->identify('u', ['score' => NAN]);
+        $vexo->capture('u', 'cycle', ['node' => $cycle]);
         $vexo->capture('u', 'ok_too');
         $vexo->flush();
 
         $this->assertSame(['ok', 'ok_too'], $this->events(0));
-        $this->assertCount(1, $this->errors);
-        $this->assertStringContainsString('JSON', $this->errors[0]->getMessage());
+        $this->assertCount(4, $this->errors);
+        foreach ($this->errors as $error) {
+            $this->assertStringContainsString("can't be sent as JSON", $error->getMessage());
+        }
     }
 
     public function test_drops_a_message_larger_than_5_mb(): void
@@ -357,6 +364,30 @@ final class VexoTest extends TestCase
         $this->assertStringContainsString('could not store', $this->errors[0]->getMessage());
         $this->assertSame('a', $this->errors[0]->dropped[0]['message']['event']);
         $this->assertSame('Storing failed; retry this message', $this->errors[0]->dropped[0]['reason']);
+    }
+
+    /** @return array<string, array{array<string, mixed>}> */
+    public static function waitsPastTheDeadline(): array
+    {
+        return [
+            '429 with Retry-After: 30' => [['status' => 429, 'headers' => ['Retry-After' => '30'], 'body' => ['success' => false]]],
+            '503 with a backoff of 0.5 s or more' => [['status' => 503, 'body' => ['success' => false]]],
+        ];
+    }
+
+    #[DataProvider('waitsPastTheDeadline')]
+    public function test_starts_no_attempt_after_the_deadline(array $response): void
+    {
+        $vexo = $this->client([$response], shutdownTimeout: 0.3);
+        $vexo->capture('u', 'a');
+        $started = hrtime(true);
+        $vexo->shutdown();
+
+        $this->assertCount(1, $this->api->requests());
+        $this->assertLessThan(0.3, (hrtime(true) - $started) / 1e9, 'a wait that reaches the deadline is not started');
+        $this->assertCount(1, $this->errors);
+        $this->assertSame($response['status'], $this->errors[0]->status);
+        $this->assertSame('a', $this->errors[0]->batch[0]['event']);
     }
 
     public function test_counts_a_2xx_body_that_is_not_the_envelope_as_a_success(): void

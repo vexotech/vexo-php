@@ -45,7 +45,7 @@ The Node.js and Python SDKs send from a background timer or thread. PHP has neit
 | The script or request ends | The queue, from a shutdown function (`register_shutdown_function`). It also runs after a fatal error, such as running out of memory. |
 | The client goes out of scope | The queue, from `__destruct()`. |
 
-Each send gives up after `shutdownTimeout` seconds (default 10), including its retries and backoff waits, and reports what it couldn't send to `onError`. In a typical web request, you capture a few events and the client sends one batch at the end.
+Each send gives up after `shutdownTimeout` seconds (default 10), including its retries and backoff waits, and reports what it couldn't send to `onError`. When a backoff or `Retry-After` wait would run past that deadline, the client stops retrying at once instead of waiting. In a typical web request, you capture a few events and the client sends one batch at the end.
 
 ### Send the response first
 
@@ -213,7 +213,7 @@ Sends everything queued, for up to `shutdownTimeout` seconds, and stops acceptin
 The client never throws from `capture()`, `identify()`, `flush()`, or `shutdown()`. Failures go to `onError` as a `Vexo\VexoException` with `status` (the HTTP status, or `null`), `batch` (the messages lost), and `dropped` (a list of `['message' => ..., 'reason' => ...]`):
 
 - A capture without a distinct ID or an event, or an identify without a distinct ID, is dropped when you queue it.
-- Dates (`DateTimeInterface`) are sent as ISO 8601 strings, enums as their value or name, and `Stringable` objects as strings. Invalid UTF-8 is replaced with `U+FFFD`. A message that still can't be encoded as JSON (for example, a `NAN` property) or that is over 5 MB is dropped when you queue it; the rest of the queue is unaffected.
+- Dates (`DateTimeInterface`) are sent as ISO 8601 strings, enums as their value or name, and `Stringable` objects as strings. Invalid UTF-8 is replaced with `U+FFFD`. A message that still can't be encoded as JSON (for example, one with a `NAN` or `INF` value, or an object that refers to itself) or that is over 5 MB is dropped when you queue it; the rest of the queue is unaffected.
 - A batch that still fails after the retries, or that the API rejects with a `4xx`, arrives with `status` and `batch`. After that, the next batches get a single attempt until a request succeeds, so an unreachable API doesn't hold up your process.
 - A message the API dropped (for example, properties over 64 KB) arrives in `dropped` with the API's reason. Messages the API reports as `failed` are retried, and reported the same way if they still fail.
 - Messages still queued when a send reaches `shutdownTimeout` arrive as one error with `batch`.
