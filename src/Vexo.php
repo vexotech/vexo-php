@@ -340,7 +340,8 @@ class Vexo
 
     /**
      * Properties or traits as a JSON object: an empty or list array would encode as a JSON array, which the API drops.
-     * Dates, enums, and Stringable objects become strings, as the other Vexo SDKs send them.
+     * Dates, enums, and Stringable objects (BcMath\Number among them) become strings, in the form every Vexo SDK uses
+     * (SPEC.md M11): a date as "2026-11-07T12:00:00.000Z", in UTC.
      *
      * @param array<array-key, mixed> $values
      */
@@ -348,7 +349,8 @@ class Vexo
     {
         array_walk_recursive($values, static function (mixed &$value): void {
             $value = match (true) {
-                $value instanceof \DateTimeInterface => $value->format(\DateTimeInterface::RFC3339_EXTENDED),
+                $value instanceof \DateTimeInterface => \DateTimeImmutable::createFromInterface($value)
+                    ->setTimezone(new \DateTimeZone('UTC'))->format('Y-m-d\TH:i:s.v\Z'),
                 $value instanceof \BackedEnum => $value->value,
                 $value instanceof \UnitEnum => $value->name,
                 $value instanceof \Stringable && !$value instanceof \JsonSerializable => (string) $value,

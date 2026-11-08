@@ -6,6 +6,8 @@ namespace Vexo\Tests;
 
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\RequiresFunction;
+use PHPUnit\Framework\Attributes\RequiresPhp;
+use PHPUnit\Framework\Attributes\RequiresPhpExtension;
 use PHPUnit\Framework\TestCase;
 use Vexo\Vexo;
 use Vexo\VexoException;
@@ -102,6 +104,7 @@ final class VexoTest extends TestCase
         $vexo->capture('u', 'typed', [
             'at' => new \DateTimeImmutable('2026-01-02T03:04:05.678+00:00'),
             'nested' => ['when' => new \DateTime('2026-01-02T00:00:00+02:00')],
+            'micro' => new \DateTimeImmutable('2026-11-07T13:00:00.123456+01:00'),
             'plan' => Plan::Pro,
             'currency' => Currency::Usd,
             'id' => new class implements \Stringable {
@@ -115,14 +118,26 @@ final class VexoTest extends TestCase
         $vexo->flush();
 
         $this->assertSame([
-            'at' => '2026-01-02T03:04:05.678+00:00',
-            'nested' => ['when' => '2026-01-02T00:00:00.000+02:00'],
+            'at' => '2026-01-02T03:04:05.678Z',
+            'nested' => ['when' => '2026-01-01T22:00:00.000Z'],
+            'micro' => '2026-11-07T12:00:00.123Z',
             'plan' => 'Pro',
             'currency' => 'USD',
             'id' => 'id-1',
             'name' => "caf\u{FFFD}",
         ], $this->api->requests()[0]['body']['batch'][0]['properties']);
         $this->assertSame([], $this->errors);
+    }
+
+    #[RequiresPhp('>= 8.4')]
+    #[RequiresPhpExtension('bcmath')]
+    public function test_sends_a_bcmath_number_as_a_plain_decimal_string(): void
+    {
+        $vexo = $this->client();
+        $vexo->capture('u', 'priced', ['tiny' => new \BcMath\Number('0.00000012345678901234567')]);
+        $vexo->flush();
+
+        $this->assertSame(['tiny' => '0.00000012345678901234567'], $this->api->requests()[0]['body']['batch'][0]['properties']);
     }
 
     public function test_drops_only_the_messages_that_cannot_be_encoded_including_nan_and_infinity(): void
