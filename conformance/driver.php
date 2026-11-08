@@ -40,7 +40,13 @@ foreach ($scenario['steps'] as $step) {
         case 'capture':
             $properties = $step['properties'] ?? [];
             if (!empty($step['poison'])) {
-                $properties['poison'] = NAN;
+                // An object that refers to itself: json_encode refuses it. (The SDK replaces invalid UTF-8 rather
+                // than refusing it, so that isn't a poison value here.)
+                $properties['poison'] = new stdClass();
+                $properties['poison']->self = $properties['poison'];
+            }
+            if (!empty($step['nan'])) {
+                $properties['nan'] = NAN;
             }
             $timestamp = isset($step['at']) ? new DateTimeImmutable($step['at']) : ($step['timestamp'] ?? null);
             $vexo->capture($step['distinctId'], $step['event'], $properties, $timestamp, $step['messageId'] ?? null);
