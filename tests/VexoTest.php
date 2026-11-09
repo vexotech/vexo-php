@@ -502,6 +502,7 @@ final class VexoTest extends TestCase
         ), '-d', 'memory_limit=32M');
 
         $this->assertStringContainsString('Allowed memory size', $output['stdout'] . $output['stderr']);
+        $this->assertCount(1, $this->api->requests(), $output['stdout'] . $output['stderr']);
         $this->assertSame(['before_crash'], $this->events(0));
     }
 
