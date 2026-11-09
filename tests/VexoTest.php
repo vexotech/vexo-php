@@ -495,13 +495,35 @@ final class VexoTest extends TestCase
     public function test_flushes_at_the_end_of_the_script_even_after_a_fatal_error(): void
     {
         $this->api = new MockApi();
-        // Destructors don't run after a fatal error such as running out of memory; shutdown functions do.
+        // Destructors don't run after a fatal error; shutdown functions do.
+        $output = self::runPhp(sprintf(
+            '$vexo = new Vexo\Vexo("test-key", host: %s); $vexo->capture("u", "before_crash"); vexo_undefined_function();',
+            var_export($this->api->host, true),
+        ));
+
+        $this->assertStringContainsString('Call to undefined function', $output['stdout'] . $output['stderr']);
+        $this->assertCount(1, $this->api->requests(), $output['stdout'] . $output['stderr']);
+        $this->assertSame(['before_crash'], $this->events(0));
+    }
+
+    public function test_flushes_at_the_end_of_the_script_even_after_running_out_of_memory(): void
+    {
+        // Some PHP 8.1 builds (Ondřej Surý's 8.1.34 packages, for one) run no shutdown function after running out of
+        // memory, so no client can flush there.
+        $probe = self::runPhp('register_shutdown_function(fn () => print "shutdown ran"); str_repeat("x", 64 * 1024 * 1024);',
+            '-d', 'memory_limit=32M');
+        if (!str_contains($probe['stdout'], 'shutdown ran')) {
+            $this->markTestSkipped('This PHP build runs no shutdown function after running out of memory.');
+        }
+
+        $this->api = new MockApi();
         $output = self::runPhp(sprintf(
             '$vexo = new Vexo\Vexo("test-key", host: %s); $vexo->capture("u", "before_crash"); str_repeat("x", 64 * 1024 * 1024);',
             var_export($this->api->host, true),
         ), '-d', 'memory_limit=32M');
 
         $this->assertStringContainsString('Allowed memory size', $output['stdout'] . $output['stderr']);
+        $this->assertCount(1, $this->api->requests(), $output['stdout'] . $output['stderr']);
         $this->assertSame(['before_crash'], $this->events(0));
     }
 

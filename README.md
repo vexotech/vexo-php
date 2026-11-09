@@ -42,7 +42,7 @@ The Node.js and Python SDKs send from a background timer or thread. PHP has neit
 | A `capture()` or `identify()` brings the queue to `flushAt` messages | The queue, before the call returns. |
 | A `capture()` or `identify()` finds the oldest queued message `flushInterval` seconds old | The queue, before the call returns. There's no timer, so a quiet process doesn't send on the interval. |
 | You call `flush()` | The queue, before the call returns. |
-| The script or request ends | The queue, from a shutdown function (`register_shutdown_function`). It also runs after a fatal error, such as running out of memory. |
+| The script or request ends | The queue, from a shutdown function (`register_shutdown_function`). It also runs after a fatal error, such as running out of memory. Some PHP 8.1 builds run no shutdown function after running out of memory, so those events are lost there. |
 | The client goes out of scope | The queue, from `__destruct()`. |
 
 Each send gives up after `shutdownTimeout` seconds (default 10), including its retries and backoff waits, and reports what it couldn't send to `onError`. When a backoff or `Retry-After` wait would run past that deadline, the client stops retrying at once instead of waiting. In a typical web request, you capture a few events and the client sends one batch at the end.
